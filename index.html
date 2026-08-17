@@ -9838,23 +9838,34 @@ function updateReports(){
   set('rep-totalBonus-sub', fp2(bo) + ' bonus');
   set('rep-demoreal-sub', _demoLen + ' demo / ' + _realLen + ' gerçek');
 
-  // Finlog'dan yatırım/çekim topla
+  // Finlog'dan yatırım/çekim topla — TEK KAYNAK budur.
+  // Onaylanan bir talep zaten _reqUpdateBalance ile finlog'a yazılır ve notuna
+  // "#<talepId>" eklenir. Aşağıda talepleri de eklerken bu id'lere bakıp
+  // finlog'a girmiş olanları ATLIYORUZ.
+  // ⚠️ 2026-08-17: Eskiden talepler koşulsuz ekleniyordu; tek bir 10.000$'lık
+  // yatırım hem finlog'da hem talep listesinde sayılıp toplam 20.000$
+  // görünüyordu (çekimlerde de aynı hata vardı, 0 olduğu için fark edilmemişti).
   var totalDep=0, totalWdr=0;
+  var _flReqIds = {};        // finlog'a yazılmış talep id'leri
   c2.forEach(function(a){
     var _rfl=getAccFinlog(a.id); if(_rfl.length){
       _rfl.forEach(function(fl){
-        if(fl.type==='deposit') totalDep+=parseFloat(fl.amount)||0;
-        else if(fl.type==='withdraw') totalWdr+=parseFloat(fl.amount)||0;
+        var _amt = parseFloat(fl.amount)||0;
+        if(fl.type==='deposit') totalDep+=_amt;
+        else if(fl.type==='withdraw') totalWdr+=_amt;
+        // Not içindeki "#123" biçimindeki talep numarasını yakala
+        var m = /#(\S+)/.exec(String(fl.note||''));
+        if(m) _flReqIds[m[1]] = true;
       });
     }
   });
 
-  // withdrawRequests + depositRequests'ten de topla (onaylananlar)
+  // Onaylanan talepler — YALNIZCA finlog'da karşılığı olmayanlar
   withdrawRequests.forEach(function(r){
-    if(r.status==='approved') totalWdr+=parseFloat(r.amount)||0;
+    if(r.status==='approved' && !_flReqIds[String(r.id)]) totalWdr+=parseFloat(r.amount)||0;
   });
   depositRequests.forEach(function(r){
-    if(r.status==='approved') totalDep+=parseFloat(r.amount)||0;
+    if(r.status==='approved' && !_flReqIds[String(r.id)]) totalDep+=parseFloat(r.amount)||0;
   });
 
   set('rep-totalDeposit', fp2(totalDep));
