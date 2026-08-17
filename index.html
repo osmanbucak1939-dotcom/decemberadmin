@@ -9838,34 +9838,20 @@ function updateReports(){
   set('rep-totalBonus-sub', fp2(bo) + ' bonus');
   set('rep-demoreal-sub', _demoLen + ' demo / ' + _realLen + ' gerçek');
 
-  // Finlog'dan yatırım/çekim topla — TEK KAYNAK budur.
-  // Onaylanan bir talep zaten _reqUpdateBalance ile finlog'a yazılır ve notuna
-  // "#<talepId>" eklenir. Aşağıda talepleri de eklerken bu id'lere bakıp
-  // finlog'a girmiş olanları ATLIYORUZ.
-  // ⚠️ 2026-08-17: Eskiden talepler koşulsuz ekleniyordu; tek bir 10.000$'lık
-  // yatırım hem finlog'da hem talep listesinde sayılıp toplam 20.000$
-  // görünüyordu (çekimlerde de aynı hata vardı, 0 olduğu için fark edilmemişti).
+  // Yatırım/çekim toplamları — KAYNAK YALNIZCA FİNLOG.
+  // ⚠️ 2026-08-17: Burada finlog'a EK OLARAK depositRequests/withdrawRequests
+  // de toplanıyordu ve her onaylı işlem İKİ KEZ sayılıyordu (10.000$'lık tek
+  // yatırım 20.000$ görünüyordu). Talep toplaması tamamen kaldırıldı; gerekçe:
+  // onay yollarının hepsi (approveReq, approveDepReq, elle yatırım/çekim)
+  // _reqUpdateBalance üzerinden geçiyor ve o da finlog'a MUTLAKA yazıyor —
+  // yani finlog zaten eksiksiz, taleplerden gelecek ek bir bilgi yok.
   var totalDep=0, totalWdr=0;
-  var _flReqIds = {};        // finlog'a yazılmış talep id'leri
   c2.forEach(function(a){
-    var _rfl=getAccFinlog(a.id); if(_rfl.length){
-      _rfl.forEach(function(fl){
-        var _amt = parseFloat(fl.amount)||0;
-        if(fl.type==='deposit') totalDep+=_amt;
-        else if(fl.type==='withdraw') totalWdr+=_amt;
-        // Not içindeki "#123" biçimindeki talep numarasını yakala
-        var m = /#(\S+)/.exec(String(fl.note||''));
-        if(m) _flReqIds[m[1]] = true;
-      });
-    }
-  });
-
-  // Onaylanan talepler — YALNIZCA finlog'da karşılığı olmayanlar
-  withdrawRequests.forEach(function(r){
-    if(r.status==='approved' && !_flReqIds[String(r.id)]) totalWdr+=parseFloat(r.amount)||0;
-  });
-  depositRequests.forEach(function(r){
-    if(r.status==='approved' && !_flReqIds[String(r.id)]) totalDep+=parseFloat(r.amount)||0;
+    getAccFinlog(a.id).forEach(function(fl){
+      var _amt = Math.abs(parseFloat(fl.amount)||0);
+      if(fl.type==='deposit') totalDep+=_amt;
+      else if(fl.type==='withdraw') totalWdr+=_amt;
+    });
   });
 
   set('rep-totalDeposit', fp2(totalDep));
